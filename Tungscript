@@ -1,0 +1,125 @@
+-- Services
+local Players = game:GetService("Players")
+local UserInputService = game:GetService("UserInputService")
+local RunService = game:GetService("RunService")
+
+local LocalPlayer = Players.LocalPlayer
+local Character = LocalPlayer.Character or LocalPlayer.CharacterAdded:Wait()
+local Humanoid = Character:WaitForChild("Humanoid")
+local RootPart = Character:WaitForChild("HumanoidRootPart")
+
+-- Settings
+local FlySpeed = 50 -- Tốc độ bay (Bạn có thể tự chỉnh số này)
+local IsFlying = false
+local Invisible = false
+
+-- Keybinds
+local ToggleFlyKey = Enum.KeyCode.F -- Phím bật/tắt Bay (mặc định là F)
+local ToggleInvisKey = Enum.KeyCode.E -- Phím bật/tắt Tàng hình (mặc định là E)
+
+-- Variables for Movement
+local Control = {F = 0, B = 0, L = 0, R = 0, Q = 0, E = 0}
+local BodyVelocity, BodyGyro
+
+-- 1. Hàm Tàng hình (Invisible)
+local function SetInvisibility(state)
+    Invisible = state
+    for _, part in pairs(Character:GetDescendants()) do
+        if part:IsA("BasePart") or part:IsA("Decal") then
+            if part.Name ~= "HumanoidRootPart" then
+                part.Transparency = state and 1 or 0
+            end
+        end
+    end
+end
+
+-- 2. Hàm Kích hoạt Bay (Fly)
+local function StartFlying()
+    IsFlying = true
+    
+    BodyGyro = Instance.new("BodyGyro")
+    BodyGyro.P = 9e4
+    BodyGyro.MaxTorque = Vector3.new(9e9, 9e9, 9e9)
+    BodyGyro.CFrame = RootPart.CFrame
+    BodyGyro.Parent = RootPart
+
+    BodyVelocity = Instance.new("BodyVelocity")
+    BodyVelocity.Velocity = Vector3.new(0, 0, 0)
+    BodyVelocity.MaxForce = Vector3.new(9e9, 9e9, 9e9)
+    BodyVelocity.Parent = RootPart
+
+    Humanoid.PlatformStand = true
+
+    task.spawn(function()
+        while IsFlying do
+            RunService.RenderStepped:Wait()
+            
+            local Camera = workspace.CurrentCamera
+            local MoveVector = Vector3.new(
+                Control.R - Control.L,
+                Control.Q - Control.E,
+                Control.B - Control.F
+            )
+            
+            if MoveVector.Magnitude > 0 then
+                MoveVector = MoveVector.Unit
+            end
+
+            -- Cập nhật hướng và tốc độ bay
+            BodyGyro.CFrame = Camera.CFrame
+            BodyVelocity.Velocity = (Camera.CFrame:VectorToWorldSpace(MoveVector)) * FlySpeed
+        end
+    end)
+end
+
+local function StopFlying()
+    IsFlying = false
+    Humanoid.PlatformStand = false
+    if BodyGyro then BodyGyro:Destroy() end
+    if BodyVelocity then BodyVelocity:Destroy() end
+end
+
+-- 3. Xử lý Input điều khiển
+UserInputService.InputBegan:Connect(function(input, gpe)
+    if gpe then return end
+
+    -- Bật/Tắt Bay
+    if input.KeyCode == ToggleFlyKey then
+        if IsFlying then
+            StopFlying()
+        else
+            StartFlying()
+        end
+    end
+
+    -- Bật/Tắt Tàng hình
+    if input.KeyCode == ToggleInvisKey then
+        SetInvisibility(not Invisible)
+    end
+
+    -- Di chuyển
+    if input.KeyCode == Enum.KeyCode.W then Control.F = 1 end
+    if input.KeyCode == Enum.KeyCode.S then Control.B = 1 end
+    if input.KeyCode == Enum.KeyCode.A then Control.L = 1 end
+    if input.KeyCode == Enum.KeyCode.D then Control.R = 1 end
+    if input.KeyCode == Enum.KeyCode.Space then Control.Q = 1 end
+    if input.KeyCode == Enum.KeyCode.LeftShift then Control.E = 1 end
+end)
+
+UserInputService.InputEnded:Connect(function(input)
+    if input.KeyCode == Enum.KeyCode.W then Control.F = 0 end
+    if input.KeyCode == Enum.KeyCode.S then Control.B = 0 end
+    if input.KeyCode == Enum.KeyCode.A then Control.L = 0 end
+    if input.KeyCode == Enum.KeyCode.D then Control.R = 0 end
+    if input.KeyCode == Enum.KeyCode.Space then Control.Q = 0 end
+    if input.KeyCode == Enum.KeyCode.LeftShift then Control.E = 0 end
+end)
+
+-- Tự động bật Tàng hình khi load nhân vật mới
+LocalPlayer.CharacterAdded:Connect(function(newChar)
+    Character = newChar
+    Humanoid = Character:WaitForChild("Humanoid")
+    RootPart = Character:WaitForChild("HumanoidRootPart")
+    IsFlying = false
+    Invisible = false
+end)
